@@ -44,7 +44,18 @@ Modify the config file:
 ➜ nano config.txt
 ```
 
-Add `dtoverlay=dwc2` to the bottom. Save the file by typing in **Control-X** then **Y** then **return**.
+At the bottom of the config file comment out the audio setting and add the three additional settings. `dwc2` allows ethernet over usb and the other two settings disable the onboard LED to conserve energy. 
+
+```
+# Enable audio (loads snd_bcm2835)
+#dtparam=audio=on
+
+dtoverlay=dwc2
+dtparam=act_led_trigger=none
+dtparam=act_led_activelow=on
+```
+
+Save the file by typing in **Control-X** then **Y** then **return**.
 
 Modify the command line file:
 
@@ -141,7 +152,9 @@ Alright, we should have an SSH session going. In the terminal run the following 
 
 We're going to set a few options:
 
--  7 Advanced Options > A1 Expand Filesystem
+- 3 Boot Options > B1 Desktop/CLI > B1 Console
+
+- 7 Advanced Options > A1 Expand Filesystem
 
 - 5 Localisation Options > I2 Change Timezone
 
@@ -153,6 +166,19 @@ We're going to set a few options:
         - 1 Change User Password
         - 2 Hostname 
 
+**NOTE:** to conserve energy we are disabling Raspbian's UI (Pixel) and only allowing the console.
+
+To conserve more energy we will also disable the HDMI output
+
+```
+➜  sudo nano /etc/rc.local
+```
+
+At the bottom, but before `exit 0` add this line:
+
+```
+/usr/bin/tvservice -o
+```
 
 ## 3.0 Configure Pi as an Access Point
 
