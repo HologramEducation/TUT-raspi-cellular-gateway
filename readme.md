@@ -41,10 +41,21 @@ Open a terminal and change directory into the BOOT drive. On Mac OSX:
 Modify the config file:
 
 ```bash
-➜ nano config.txt
+➜ nano /boot/config.txt
 ```
 
-Add `dtoverlay=dwc2` to the bottom. Save the file by typing in **Control-X** then **Y** then **return**.
+At the bottom of the config file comment out the audio setting and add the three additional settings. `dwc2` allows ethernet over usb and the other two settings disable the onboard LED to conserve energy. 
+
+```
+# Enable audio (loads snd_bcm2835)
+#dtparam=audio=on
+
+dtoverlay=dwc2
+dtparam=act_led_trigger=none
+dtparam=act_led_activelow=on
+```
+
+Save the file by typing in **Control-X** then **Y** then **return**.
 
 Modify the command line file:
 
@@ -141,7 +152,9 @@ Alright, we should have an SSH session going. In the terminal run the following 
 
 We're going to set a few options:
 
--  7 Advanced Options > A1 Expand Filesystem
+- 3 Boot Options > B1 Desktop/CLI > B1 Console
+
+- 7 Advanced Options > A1 Expand Filesystem
 
 - 5 Localisation Options > I2 Change Timezone
 
@@ -150,9 +163,22 @@ We're going to set a few options:
 - 8 Update
 
 - Optional but recommended
-        - 1 Change User Password
-        - 2 Hostname 
+  - 1 Change User Password
+  - 2 Hostname 
 
+**NOTE:** to conserve energy we are disabling Raspbian's UI (Pixel) and only allowing the console.
+
+To conserve more energy we will also disable the HDMI output
+
+```
+➜  sudo nano /etc/rc.local
+```
+
+At the bottom, but before `exit 0` add this line:
+
+```
+/usr/bin/tvservice -o
+```
 
 ## 3.0 Configure Pi as an Access Point
 
@@ -446,7 +472,7 @@ client.loop_start()
 
 # We create our own loop to keep this script running 
 while True:
-    time.sleep(3)
+    time.sleep(5)
 ```
 
 **Start Pi Script**
@@ -485,7 +511,9 @@ Install the board and code library dependencies:
     - PlatformIO Installation - support already built in :)
     - ArduinoIDE Installation - [follow these instructions](https://github.com/esp8266/Arduino#installing-with-boards-manager)
 
-Node device code:
+**Code**
+
+https://github.com/benstr/TUT-raspi-cellular-gateway/blob/master/client/client.ino
 
 ```cpp
 #include <ESP8266WiFi.h>
@@ -506,8 +534,7 @@ long lastMsg = 0;
 char msg[50];
 int value = 0;
 
-void setup_wifi() {
-
+void connect_wifi() {
   delay(10);
   // We start by connecting to a WiFi network
   Serial.println();
@@ -517,16 +544,32 @@ void setup_wifi() {
   WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+    if (WiFi.status() == WL_NO_SSID_AVAIL) {
+      Serial.println();
+      break;
+    } else  {
+      delay(1000);
+      Serial.print(".");
+    }
   }
 
-  randomSeed(micros());
+  if(WiFi.status() == WL_CONNECTED) {
+    randomSeed(micros());
+  
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("Network not found, trying again...");
+  }
+}
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+void setup_wifi() {
+  while (WiFi.status() != WL_CONNECTED) {
+    connect_wifi();
+    delay(2000);
+  }
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -554,6 +597,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
+
+    // First check for wifi connectivity
+    if(WiFi.status() == WL_DISCONNECTED){
+      Serial.print("Lost WiFi connection, attempting new connection..");
+      setup_wifi();
+    }
+    
     Serial.print("Attempting MQTT connection...");
     // Create a random client ID
     String clientId = "ESP8266Client-";
@@ -572,7 +622,6 @@ void reconnect() {
 }
 
 void setup() {
-  // Initialize the BUILTIN_LED pin as an output
   pinMode(BUILTIN_LED, OUTPUT);
   Serial.begin(115200);
   setup_wifi();
@@ -636,7 +685,7 @@ Edit the newly created file.
 ➜ sudo nano gateway-cell.py
 ```
 
-Near the top add an import for the Hologram SDK, instantiate Hologram and connect to the network.
+Near the top add an import for the Hologram SDK and instantiate.
 
 ```python
 import time
@@ -644,7 +693,6 @@ import paho.mqtt.client as mqtt
 from Hologram.HologramCloud import HologramCloud
 
 hologram = HologramCloud(dict(), network='cellular')
-hologram.network.connect()
 ```
 
 Add a Hologram SDK `sendMessage()` to the bottom of the `on_message()` function.
@@ -656,22 +704,11 @@ def on_message(client, userdata, msg):
     print(client)
     print(msg.topic+" "+message)
 
-    resp = hologram.sendMessage(message,topics=[msg.topic])
-    print resp
+    response = hologram.sendMessage(message, topics=[msg.topic])
+    print response
 ```
 
-Modify the loop at the very bottom to catch when the loop terminates and to disconnect from the cell network when that happens.
-
-```
-try:
-    while True:
-        time.sleep(5)
-
-finally:
-    hologram.network.disconnect()
-```
-
-See the `gateway_cell.py` file in the GitHub repository to check your work.
+See the `gateway_cell.py` file in the [GitHub repository](https://github.com/benstr/TUT-raspi-cellular-gateway) to check your work.
 
 **Moar Power!**
 
@@ -716,7 +753,7 @@ node/value hello hologram #4
 
 P.S. While the script is running the blinking light on the Nova should become solid. This is to show we are connected to a network and have established a TCP session.
 
-## 7.0 Conclusion
+**Data in the Cloud**
 
 Close the SSH session by typing `exit`. This will also kill the script.
 
@@ -726,14 +763,237 @@ Go to the [Hologram web console](https://dashboard.hologram.io/?drawer=full) to 
 
 ![](./images/hologram-console.png)
 
-**Shower Thoughts**
+## 7.0 Makeing something Useful
 
-I feel this tutorial laid a good foundation which can be molded to fit your next gateway project. Here are a few suggestions for moving forward:
+With the skills you've learned above lets build a network of environmental sensors (light, temperature, and humidity).
 
-- Set your python script to automatically run after the Pi boots. You can learn the different ways to accomplish that from [this great blog post](https://www.dexterindustries.com/howto/run-a-program-on-your-raspberry-pi-at-startup/).
+You'll need the following components for each node:
+- DHT11 Sensor
+- Photoresistor
+- 2 10k Resistors
+- 2 LEDs (preferrably green and red)
+- ~10 Jumper Wires
 
-- You can add as many Nodes as you’d like, whenever you’d like. With MQTT you can start a new Node, and it will automatically work with the script running on the Pi. Although, you should consider publishing data that identifies the device or publish to a subtopic, one for each device with the Pi subscribing to a topic wildcard.
+In PlatformIO or Arduino IDE install the following libraries:
+- Adafruit DHT
+- Adafruit Unified Sensor
 
-- The cellular `sendMessage()` function really should not be called inside the `on_message()` function. Rather, you should compute and condense the data and send to the cloud less frequently.
+**Schematic:**
+![](./images/sense-schematic.png)
+
+**Code:**
+The code below expands from the example we used in step 5.0. We add logic to read sensors and format their results plus sprinkle in some logic to control two LEDs (red and green). 
+
+The LEDs will help us determine the connection status of the device without needing access to the serial console.
+
+https://github.com/benstr/TUT-raspi-cellular-gateway/blob/master/client_sense/client_sense.ino
+
+```cpp
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h>
+#include <DHT.h>
+
+#define DHT_PIN D3
+#define DHT_TYPE DHT11
+#define LUM_PIN A0
+#define GREEN_LED D1
+#define RED_LED D2 
+
+DHT dht(DHT_PIN, DHT_TYPE);
+
+// Update these with values suitable for your network.
+const char* ssid = "friendly-raspberry";
+const char* password = "hologram";
+const char* mqtt_server = "192.168.42.1";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+long lastMsg = 0;
+char msg[120];
+int msgNum = 0;
+
+void connect_wifi() {
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    if (WiFi.status() == WL_NO_SSID_AVAIL) {
+      Serial.println();
+      break;
+    } else  {
+      delay(1000);
+      Serial.print(".");
+    }
+  }
+
+  if(WiFi.status() == WL_CONNECTED) {
+    randomSeed(micros());
+  
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("Network not found, trying again...");
+  }
+}
+
+void setup_wifi() {
+  digitalWrite(GREEN_LED, LOW);
+  digitalWrite(RED_LED, HIGH);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    connect_wifi();
+    delay(2000);
+  }
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+
+  // Switch on the LED if an 1 was received as first character
+  if ((char)payload[0] == '1') {
+    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
+    // but actually the LED is on; this is because
+    // it is acive low on the ESP-01)
+  } else {
+    digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
+  }
+
+}
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+
+    if(WiFi.status() == WL_DISCONNECTED){
+      Serial.print("Lost WiFi connection, attempting new connection..");
+      setup_wifi();
+    }
+    
+    Serial.print("Attempting MQTT connection...");
+    // Create a random client ID
+    String clientId = "ESP8266Client-";
+    clientId += String(random(0xffff), HEX);
+    // Attempt to connect
+    if (client.connect(clientId.c_str())) {
+      digitalWrite(GREEN_LED, HIGH);
+      digitalWrite(RED_LED, LOW);
+      Serial.println("connected");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(BUILTIN_LED, OUTPUT); 
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(RED_LED, OUTPUT);
+  dht.begin();
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+}
+
+void loop() {
+
+  if (!client.connected()) {
+    digitalWrite(GREEN_LED, LOW);
+    digitalWrite(RED_LED, HIGH);
+    reconnect();
+  }
+  client.loop();
+
+  long now = millis();
+  if (now - lastMsg > 10000) {
+    lastMsg = now;
+    ++msgNum;
+
+    int iLum = analogRead(LUM_PIN); // read photoresistor value (brightness)
+    float fHum = dht.readHumidity(); // Read humidity
+    float fTemp = dht.readTemperature(true); // Read temperature as Fahrenheit (isFahrenheit = true)
+
+    // Check if any reads failed and exit early (to try again).
+    if (isnan(fHum) || isnan(fTemp)) {
+      Serial.println("Failed to read from DHT sensor!");
+      return;
+    }
+
+    // convert sensor readings to strings
+    char lum[8];
+    char temp[8];
+    char hum[8];
+    dtostrf(iLum, 1, 0, lum);
+    dtostrf(fTemp, 1, 2, temp);
+    dtostrf(fHum, 1, 2, hum);
+
+    // format data into a JSON string
+    snprintf (msg, 120, "{\"msgNum\": %ld, \"temp\": %s, \"hum\": %s, \"lum\": %s}", msgNum, temp, hum, lum);
+    Serial.print("Publish message: ");
+    Serial.println(msg);
+    client.publish("environment/studio", msg);
+  }
+}
+```
+
+**Gateway Code**
+
+The gateway python code is nearly untouched. we just make a few tweaks to the MQTT topic.
+
+https://github.com/benstr/TUT-raspi-cellular-gateway/blob/master/gateway_cell_sense.py
+
+```python
+import time
+import paho.mqtt.client as mqtt
+from Hologram.HologramCloud import HologramCloud
+
+hologram = HologramCloud(dict(), network='cellular')
+
+Broker = "localhost"
+sub_topic = "environment/#"
+
+# when connecting to mqtt do this;
+def on_connect(node, userdata, flags, rc):
+    print "Connected with result code "+str(rc)
+    client.subscribe(sub_topic)
+
+# when receiving a mqtt message do this;
+def on_message(node, userdata, msg):
+    message = str(msg.payload)
+    print msg.topic+" "+message
+
+    response = hologram.sendMessage(message, topics=[msg.topic, sub_topic])
+    print response
+
+client = mqtt.Client()
+client.on_connect = on_connect
+client.on_message = on_message
+client.connect(Broker, 1883, 60)
+client.loop_start()
+
+while True:
+    time.sleep(10)
+```
+
+Run the code as we did before and check the Hologram console to see the code in the cloud. If everything works then I'd recommend setting your python script to automatically run after the Pi boots. You can learn the different ways to accomplish that from [this great blog post](https://www.dexterindustries.com/howto/run-a-program-on-your-raspberry-pi-at-startup/).
+
 
 Enjoy!

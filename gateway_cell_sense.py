@@ -5,7 +5,7 @@ from Hologram.HologramCloud import HologramCloud
 hologram = HologramCloud(dict(), network='cellular')
 
 Broker = "localhost"
-sub_topic = "node/value"
+sub_topic = "environment/#"
 
 # when connecting to mqtt do this;
 def on_connect(node, userdata, flags, rc):
@@ -17,7 +17,7 @@ def on_message(node, userdata, msg):
     message = str(msg.payload)
     print msg.topic+" "+message
 
-    response = hologram.sendMessage(message, topics=[msg.topic])
+    response = hologram.sendMessage(message, topics=[msg.topic, sub_topic])
     print response
 
 client = mqtt.Client()
@@ -27,4 +27,4 @@ client.connect(Broker, 1883, 60)
 client.loop_start()
 
 while True:
-    time.sleep(5)
+    time.sleep(10)

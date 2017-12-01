@@ -1,45 +1,22 @@
-/*
- Basic ESP8266 MQTT example
-
- This sketch demonstrates the capabilities of the pubsub library in combination
- with the ESP8266 board/library.
-
- It connects to an MQTT server then:
-  - publishes "hello world" to the topic "outTopic" every two seconds
-  - subscribes to the topic "inTopic", printing out any messages
-    it receives. NB - it assumes the received payloads are strings not binary
-  - If the first character of the topic "inTopic" is an 1, switch ON the ESP Led,
-    else switch it off
-
- It will reconnect to the server if the connection is lost using a blocking
- reconnect function. See the 'mqtt_reconnect_nonblocking' example for how to
- achieve the same result without blocking the main loop.
-
- To install the ESP8266 board, (using Arduino 1.6.4+):
-  - Add the following 3rd party board manager under "File -> Preferences -> Additional Boards Manager URLs":
-       http://arduino.esp8266.com/stable/package_esp8266com_index.json
-  - Open the "Tools -> Board -> Board Manager" and click install for the ESP8266"
-  - Select your ESP8266 in "Tools -> Board"
-
-*/
-
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
-// Update these with values suitable for your network.
-
+// Pi's access point name
 const char* ssid = "friendly-raspberry";
+
+// Pi's access point password
 const char* password = "hologram";
+
+// broker IP address
 const char* mqtt_server = "192.168.42.1";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 long lastMsg = 0;
-char msg[50];
+char msg[120];
 int value = 0;
 
-void setup_wifi() {
-
+void connect_wifi() {
   delay(10);
   // We start by connecting to a WiFi network
   Serial.println();
@@ -49,16 +26,32 @@ void setup_wifi() {
   WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+    if (WiFi.status() == WL_NO_SSID_AVAIL) {
+      Serial.println();
+      break;
+    } else  {
+      delay(1000);
+      Serial.print(".");
+    }
   }
 
-  randomSeed(micros());
+  if(WiFi.status() == WL_CONNECTED) {
+    randomSeed(micros());
+  
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("Network not found, trying again...");
+  }
+}
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+void setup_wifi() {
+  while (WiFi.status() != WL_CONNECTED) {
+    connect_wifi();
+    delay(2000);
+  }
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -72,11 +65,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   // Switch on the LED if an 1 was received as first character
   if ((char)payload[0] == '1') {
-    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
+    digitalWrite(BUILTIN_LED, LOW);
+    // Turn the LED on (Note that LOW is the voltage level
     // but actually the LED is on; this is because
     // it is acive low on the ESP-01)
   } else {
-    digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
+    // Turn the LED off by making the voltage HIGH
+    digitalWrite(BUILTIN_LED, HIGH);
   }
 
 }
@@ -84,6 +79,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
+
+    // First check for wifi connectivity
+    if(WiFi.status() == WL_DISCONNECTED){
+      Serial.print("Lost WiFi connection, attempting new connection..");
+      setup_wifi();
+    }
+    
     Serial.print("Attempting MQTT connection...");
     // Create a random client ID
     String clientId = "ESP8266Client-";
@@ -102,7 +104,7 @@ void reconnect() {
 }
 
 void setup() {
-  pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
+  pinMode(BUILTIN_LED, OUTPUT);
   Serial.begin(115200);
   setup_wifi();
   client.setServer(mqtt_server, 1883);
@@ -110,19 +112,25 @@ void setup() {
 }
 
 void loop() {
+  long now = millis();
 
+  // verify device is connected to the Broker
   if (!client.connected()) {
     reconnect();
   }
+
+  // MQTT client library loops through checking the queue
   client.loop();
 
-  long now = millis();
+  // publish a message every 2 seconds
   if (now - lastMsg > 2000) {
     lastMsg = now;
     ++value;
-    snprintf (msg, 75, "hello hologram #%ld", value);
+    snprintf (msg, 120, "hello hologram #%ld", value);
     Serial.print("Publish message: ");
     Serial.println(msg);
+
+    // publish msg to the topic "node/value"
     client.publish("node/value", msg);
   }
 }
