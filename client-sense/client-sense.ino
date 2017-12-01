@@ -140,16 +140,13 @@ void loop() {
     float fHum = dht.readHumidity(); // Read humidity
     float fTemp = dht.readTemperature(true); // Read temperature as Fahrenheit (isFahrenheit = true)
 
-    Serial.println(iLum);
-    Serial.println(fHum);
-    Serial.println(fTemp);
-
     // Check if any reads failed and exit early (to try again).
     if (isnan(fHum) || isnan(fTemp)) {
       Serial.println("Failed to read from DHT sensor!");
       return;
     }
 
+    // convert sensor readings to strings
     char lum[8];
     char temp[8];
     char hum[8];
@@ -157,10 +154,7 @@ void loop() {
     dtostrf(fTemp, 1, 2, temp);
     dtostrf(fHum, 1, 2, hum);
 
-    Serial.println(lum);
-    Serial.println(hum);
-    Serial.println(temp);
-
+    // format data into a JSON string
     snprintf (msg, 120, "{\"msgNum\": %ld, \"temp\": %s, \"hum\": %s, \"lum\": %s}", msgNum, temp, hum, lum);
     Serial.print("Publish message: ");
     Serial.println(msg);
