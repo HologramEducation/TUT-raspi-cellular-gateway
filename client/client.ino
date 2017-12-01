@@ -1,16 +1,19 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
-// Update these with values suitable for your network.
-
+// Pi's access point name
 const char* ssid = "friendly-raspberry";
+
+// Pi's access point password
 const char* password = "hologram";
+
+// broker IP address
 const char* mqtt_server = "192.168.42.1";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 long lastMsg = 0;
-char msg[50];
+char msg[120];
 int value = 0;
 
 void connect_wifi() {
@@ -62,11 +65,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   // Switch on the LED if an 1 was received as first character
   if ((char)payload[0] == '1') {
-    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
+    digitalWrite(BUILTIN_LED, LOW);
+    // Turn the LED on (Note that LOW is the voltage level
     // but actually the LED is on; this is because
     // it is acive low on the ESP-01)
   } else {
-    digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
+    // Turn the LED off by making the voltage HIGH
+    digitalWrite(BUILTIN_LED, HIGH);
   }
 
 }
@@ -75,6 +80,7 @@ void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
 
+    // First check for wifi connectivity
     if(WiFi.status() == WL_DISCONNECTED){
       Serial.print("Lost WiFi connection, attempting new connection..");
       setup_wifi();
@@ -98,7 +104,7 @@ void reconnect() {
 }
 
 void setup() {
-  pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
+  pinMode(BUILTIN_LED, OUTPUT);
   Serial.begin(115200);
   setup_wifi();
   client.setServer(mqtt_server, 1883);
@@ -106,19 +112,25 @@ void setup() {
 }
 
 void loop() {
+  long now = millis();
 
+  // verify device is connected to the Broker
   if (!client.connected()) {
     reconnect();
   }
+
+  // MQTT client library loops through checking the queue
   client.loop();
 
-  long now = millis();
+  // publish a message every 2 seconds
   if (now - lastMsg > 2000) {
     lastMsg = now;
     ++value;
-    snprintf (msg, 75, "hello hologram #%ld", value);
+    snprintf (msg, 120, "hello hologram #%ld", value);
     Serial.print("Publish message: ");
     Serial.println(msg);
+
+    // publish msg to the topic "node/value"
     client.publish("node/value", msg);
   }
 }

@@ -41,7 +41,7 @@ Open a terminal and change directory into the BOOT drive. On Mac OSX:
 Modify the config file:
 
 ```bash
-➜ nano config.txt
+➜ nano /boot/config.txt
 ```
 
 At the bottom of the config file comment out the audio setting and add the three additional settings. `dwc2` allows ethernet over usb and the other two settings disable the onboard LED to conserve energy. 
@@ -163,8 +163,8 @@ We're going to set a few options:
 - 8 Update
 
 - Optional but recommended
-        - 1 Change User Password
-        - 2 Hostname 
+  - 1 Change User Password
+  - 2 Hostname 
 
 **NOTE:** to conserve energy we are disabling Raspbian's UI (Pixel) and only allowing the console.
 
@@ -472,7 +472,7 @@ client.loop_start()
 
 # We create our own loop to keep this script running 
 while True:
-    time.sleep(3)
+    time.sleep(5)
 ```
 
 **Start Pi Script**
@@ -511,7 +511,9 @@ Install the board and code library dependencies:
     - PlatformIO Installation - support already built in :)
     - ArduinoIDE Installation - [follow these instructions](https://github.com/esp8266/Arduino#installing-with-boards-manager)
 
-Node device code:
+**Code**
+
+https://github.com/benstr/TUT-raspi-cellular-gateway/blob/master/client/client.ino
 
 ```cpp
 #include <ESP8266WiFi.h>
@@ -532,8 +534,7 @@ long lastMsg = 0;
 char msg[50];
 int value = 0;
 
-void setup_wifi() {
-
+void connect_wifi() {
   delay(10);
   // We start by connecting to a WiFi network
   Serial.println();
@@ -543,16 +544,32 @@ void setup_wifi() {
   WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+    if (WiFi.status() == WL_NO_SSID_AVAIL) {
+      Serial.println();
+      break;
+    } else  {
+      delay(1000);
+      Serial.print(".");
+    }
   }
 
-  randomSeed(micros());
+  if(WiFi.status() == WL_CONNECTED) {
+    randomSeed(micros());
+  
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("Network not found, trying again...");
+  }
+}
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+void setup_wifi() {
+  while (WiFi.status() != WL_CONNECTED) {
+    connect_wifi();
+    delay(2000);
+  }
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -580,6 +597,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
+
+    // First check for wifi connectivity
+    if(WiFi.status() == WL_DISCONNECTED){
+      Serial.print("Lost WiFi connection, attempting new connection..");
+      setup_wifi();
+    }
+    
     Serial.print("Attempting MQTT connection...");
     // Create a random client ID
     String clientId = "ESP8266Client-";
@@ -598,7 +622,6 @@ void reconnect() {
 }
 
 void setup() {
-  // Initialize the BUILTIN_LED pin as an output
   pinMode(BUILTIN_LED, OUTPUT);
   Serial.begin(115200);
   setup_wifi();
@@ -662,7 +685,7 @@ Edit the newly created file.
 ➜ sudo nano gateway-cell.py
 ```
 
-Near the top add an import for the Hologram SDK, instantiate Hologram and connect to the network.
+Near the top add an import for the Hologram SDK and instantiate.
 
 ```python
 import time
@@ -670,7 +693,6 @@ import paho.mqtt.client as mqtt
 from Hologram.HologramCloud import HologramCloud
 
 hologram = HologramCloud(dict(), network='cellular')
-hologram.network.connect()
 ```
 
 Add a Hologram SDK `sendMessage()` to the bottom of the `on_message()` function.
@@ -682,22 +704,11 @@ def on_message(client, userdata, msg):
     print(client)
     print(msg.topic+" "+message)
 
-    resp = hologram.sendMessage(message,topics=[msg.topic])
-    print resp
+    response = hologram.sendMessage(message, topics=[msg.topic])
+    print response
 ```
 
-Modify the loop at the very bottom to catch when the loop terminates and to disconnect from the cell network when that happens.
-
-```
-try:
-    while True:
-        time.sleep(5)
-
-finally:
-    hologram.network.disconnect()
-```
-
-See the `gateway_cell.py` file in the GitHub repository to check your work.
+See the `gateway_cell.py` file in the [GitHub repository](https://github.com/benstr/TUT-raspi-cellular-gateway) to check your work.
 
 **Moar Power!**
 
