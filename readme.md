@@ -779,7 +779,7 @@ In PlatformIO or Arduino IDE install the following libraries:
 - Adafruit Unified Sensor
 
 **Schematic:**
-*coming soon*
+![](./images/sense-schematic.png)
 
 **Code:**
 The code below expands from the example we used in step 5.0. We add logic to read sensors and format their results plus sprinkle in some logic to control two LEDs (red and green). 
