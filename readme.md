@@ -284,7 +284,7 @@ Save the file by typing in **Control-X** then **Y** then **return**.
 Set the static IP for wifi right now:
 
 ```bash
-➜ sudoifconfigwlan0 192.168.42.1
+➜ sudo ifconfig wlan0 192.168.42.1
 ```
 
 **Configure the Access Point**
