@@ -156,9 +156,9 @@ We're going to set a few options:
 
 - 7 Advanced Options > A1 Expand Filesystem
 
-- 5 Localisation Options > I2 Change Timezone
+- 4 Localisation Options > I2 Change Timezone
 
-- 5 Localisation Options > I3 Change WiFi Country
+- 4 Localisation Options > I3 Change WiFi Country
 
 - 8 Update
 
