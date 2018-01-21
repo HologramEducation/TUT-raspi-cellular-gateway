@@ -676,13 +676,13 @@ In an SSH session with your Pi (plugged into your computer’s USB) install the 
 Copy existing gateway script.
 
 ```bash
-➜ cp gateway.py gateway-cell.py
+➜ cp gateway.py gateway_cell.py
 ```
 
 Edit the newly created file.
 
 ```bash
-➜ sudo nano gateway-cell.py
+➜ sudo nano gateway_cell.py
 ```
 
 Near the top add an import for the Hologram SDK and instantiate.
