@@ -225,7 +225,7 @@ Add these lines at the bottom of the file.
 
 ```Python
 subnet 192.168.42.0 netmask 255.255.255.0 {
-    range 192.168.42.10192.168.42.50;
+    range 192.168.42.10 192.168.42.50;
     option broadcast-address 192.168.42.255;
     option routers 192.168.42.1;
     default-lease-time 600;
@@ -726,7 +726,7 @@ Close the current SSH session by typing `exit` and disconnect the USB cable.
 
 Now connect your development computer to the Pi’s WiFi. We’ll lose internet connectivity and for the next few moments that will be ok.
 
-Being connected to the `friendly-raspberry` WWiFi network, you can now reconnect through SSH the same as you did before.
+Being connected to the `friendly-raspberry` WiFi network, you can now reconnect through SSH the same as you did before.
 
 ```bash
 ➜ ssh pi@raspberrypi.local
